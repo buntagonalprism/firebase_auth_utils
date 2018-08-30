@@ -6,7 +6,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_facebook_login/flutter_facebook_login.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
-
 /// Possible result statuses for a request to sign in using email address and password to Firebase
 ///
 /// I was unable to find official documentation for these status codes - they were found through
@@ -124,6 +123,13 @@ enum FirebaseEmailSignUpStatus {
   ERROR_EMAIL_ALREADY_IN_USE,
 }
 
+enum PasswordResetEmailStatus {
+  SUCCESS,
+  ERROR_MISSING_EMAIL,
+  ERROR_EMAIL_INVALID,
+  ERROR_USER_NOT_FOUND
+}
+
 class FirebaseAuthResult<T> {
   T status;
   FirebaseUser user;
@@ -149,15 +155,20 @@ final emailSignUpErrorCodes = <String, FirebaseEmailSignUpStatus>{
   'ERROR_MISSING_EMAIL': FirebaseEmailSignUpStatus.ERROR_MISSING_EMAIL,
 };
 
-class FirebaseAuthUtils {
+/// Maps native error code strings to statuses
+final passwordResetErrorCodes = <String, PasswordResetEmailStatus>{
+  // Same error codes are returned by both iOS and Android
+  'ERROR_MISSING_EMAIL': PasswordResetEmailStatus.ERROR_MISSING_EMAIL,
+  'ERROR_EMAIL_INVALID': PasswordResetEmailStatus.ERROR_EMAIL_INVALID,
+  'ERROR_USER_NOT_FOUND': PasswordResetEmailStatus.ERROR_USER_NOT_FOUND,
+};
 
+class FirebaseAuthUtils {
   // Public to expose any firebase authentication functionality not currently supported through this
   // helper class.
   final FirebaseAuth auth = FirebaseAuth.instance;
 
-
   final GoogleSignIn _googleSignIn = new GoogleSignIn();
-
 
   /// Sign a user up with an email address and password
   ///
@@ -166,9 +177,7 @@ class FirebaseAuthUtils {
   /// ERROR_EMAIL_MISSING is returned for null or empty email addresses
   /// ERROR_WEAK_PASSWORD is returned for a null or < 6 character password
   ///
-  /// No client-side validation is performed that the email is correctly formatted. This should be
-  /// performed as part of UI validation before submission.
-  /// ERROR_INVALID_EMAIL will be returned by Firebase for invalid email formats
+  /// ERROR_INVALID_EMAIL will be returned using a regex test for invalid emails
   ///
   /// ERROR_EMAIL_ALREADY_IN_USE is returned when the email is in use by an existing user
   ///
@@ -180,6 +189,11 @@ class FirebaseAuthUtils {
     if (email == null || email?.length == 0) {
       return FirebaseAuthResult<FirebaseEmailSignUpStatus>.error(
         status: FirebaseEmailSignUpStatus.ERROR_MISSING_EMAIL,
+      );
+    }
+    if (!emailAddress.hasMatch(email)) {
+      return FirebaseAuthResult<FirebaseEmailSignUpStatus>.error(
+        status: FirebaseEmailSignUpStatus.ERROR_INVALID_EMAIL,
       );
     }
     if (password == null || (password?.length ?? 0) < 6) {
@@ -220,9 +234,7 @@ class FirebaseAuthUtils {
   /// ERROR_MISSING_EMAIL is returned for null or empty email addresses
   /// ERROR_MISSING_PASSWORD is returned for a null or empty password
   ///
-  /// No client-side validation is performed that the email is correctly formatted. This should be
-  /// performed as part of UI validation before submission.
-  /// ERROR_INVALID_EMAIL is returned by Firebase for invalid email formats
+  /// ERROR_INVALID_EMAIL is returned using a regex test for invalid emails
   ///
   /// ERROR_USER_NOT_FOUND is returned by Firebase when user does not have an account
   /// ERROR_WRONG_PASSWORD is returned by Firebase when password is incorrect
@@ -235,6 +247,11 @@ class FirebaseAuthUtils {
     if (email == null || email?.length == 0) {
       return FirebaseAuthResult<FirebaseEmailSignInStatus>.error(
         status: FirebaseEmailSignInStatus.ERROR_MISSING_EMAIL,
+      );
+    }
+    if (!emailAddress.hasMatch(email)) {
+      return FirebaseAuthResult<FirebaseEmailSignInStatus>.error(
+        status: FirebaseEmailSignInStatus.ERROR_INVALID_EMAIL,
       );
     }
     if (password == null || password?.length == 0) {
@@ -344,6 +361,35 @@ class FirebaseAuthUtils {
     }
   }
 
+  /// Send a password reset email
+  ///
+  /// Validates that the email address is non-null and valid before sending to firebase
+  ///
+  /// ERROR_USER_NOT_FOUND will be returned if the user does not have an account
+  Future<PasswordResetEmailStatus> sendPasswordResetEmail(String email) async {
+    if (email == null || email?.length == 0) {
+      return PasswordResetEmailStatus.ERROR_MISSING_EMAIL;
+    }
+    if (!emailAddress.hasMatch(email)) {
+      return PasswordResetEmailStatus.ERROR_EMAIL_INVALID;
+    }
+
+    try {
+      await auth.sendPasswordResetEmail(email: email);
+      return PasswordResetEmailStatus.SUCCESS;
+    } catch (error) {
+      if (error is PlatformException) {
+        if (emailSignInErrorCodes.containsKey(error.code)) {
+          return passwordResetErrorCodes[error.code];
+        } else {
+          throw "Unexpected Firebase Authentication exception for send password reset email: $error";
+        }
+      } else {
+        throw "Unexpected Firebase Authentication exception for send password reset email: $error";
+      }
+    }
+  }
+
   Future<FirebaseUser> getFirebaseUser() {
     return auth.currentUser();
   }
@@ -380,4 +426,15 @@ class FirebaseAuthUtils {
       await FacebookLogin().logOut();
     }
   }
+
+  /// Added start and end of string markers as Dart RegExp does not support
+  /// matching against the entire string
+  /// Copied from Android Patterns file
+  static final emailAddress = new RegExp("^[a-zA-Z0-9\\+\\.\\_\\%\\-\\+]{1,256}" +
+      "\\@" +
+      "[a-zA-Z0-9][a-zA-Z0-9\\-]{0,64}" +
+      "(" +
+      "\\." +
+      "[a-zA-Z0-9][a-zA-Z0-9\\-]{0,25}" +
+      ")+\$");
 }
