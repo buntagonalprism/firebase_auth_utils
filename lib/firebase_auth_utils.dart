@@ -6,8 +6,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_facebook_login/flutter_facebook_login.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
-final FirebaseAuth _auth = FirebaseAuth.instance;
-final GoogleSignIn _googleSignIn = new GoogleSignIn();
 
 /// Possible result statuses for a request to sign in using email address and password to Firebase
 ///
@@ -130,8 +128,8 @@ class FirebaseAuthResult<T> {
   T status;
   FirebaseUser user;
 
-  FirebaseAuthResult.Error({@required this.status});
-  FirebaseAuthResult.Success({@required this.status, @required this.user});
+  FirebaseAuthResult.error({@required this.status});
+  FirebaseAuthResult.success({@required this.status, @required this.user});
 }
 
 /// Maps native error code strings to statuses
@@ -152,6 +150,15 @@ final emailSignUpErrorCodes = <String, FirebaseEmailSignUpStatus>{
 };
 
 class FirebaseAuthUtils {
+
+  // Public to expose any firebase authentication functionality not currently supported through this
+  // helper class.
+  final FirebaseAuth auth = FirebaseAuth.instance;
+
+
+  final GoogleSignIn _googleSignIn = new GoogleSignIn();
+
+
   /// Sign a user up with an email address and password
   ///
   /// Due to differences in the native Firebase Authentication Android and iOS libraries, null or
@@ -171,30 +178,30 @@ class FirebaseAuthUtils {
   Future<FirebaseAuthResult<FirebaseEmailSignUpStatus>> signUpWithEmail(
       String email, String password) async {
     if (email == null || email?.length == 0) {
-      return FirebaseAuthResult<FirebaseEmailSignUpStatus>.Error(
+      return FirebaseAuthResult<FirebaseEmailSignUpStatus>.error(
         status: FirebaseEmailSignUpStatus.ERROR_MISSING_EMAIL,
       );
     }
     if (password == null || (password?.length ?? 0) < 6) {
-      return FirebaseAuthResult<FirebaseEmailSignUpStatus>.Error(
+      return FirebaseAuthResult<FirebaseEmailSignUpStatus>.error(
         status: FirebaseEmailSignUpStatus.ERROR_WEAK_PASSWORD,
       );
     }
 
     try {
-      final user = await _auth.createUserWithEmailAndPassword(
+      final user = await auth.createUserWithEmailAndPassword(
         email: email,
         password: password,
       );
       assert(user != null);
-      return FirebaseAuthResult<FirebaseEmailSignUpStatus>.Success(
+      return FirebaseAuthResult<FirebaseEmailSignUpStatus>.success(
         status: FirebaseEmailSignUpStatus.SUCCESS,
         user: user,
       );
     } catch (error) {
       if (error is PlatformException) {
         if (emailSignUpErrorCodes.containsKey(error.code)) {
-          return FirebaseAuthResult<FirebaseEmailSignUpStatus>.Error(
+          return FirebaseAuthResult<FirebaseEmailSignUpStatus>.error(
             status: emailSignUpErrorCodes[error.code],
           );
         } else {
@@ -226,30 +233,30 @@ class FirebaseAuthUtils {
   Future<FirebaseAuthResult<FirebaseEmailSignInStatus>> signInWithEmail(
       String email, String password) async {
     if (email == null || email?.length == 0) {
-      return FirebaseAuthResult<FirebaseEmailSignInStatus>.Error(
+      return FirebaseAuthResult<FirebaseEmailSignInStatus>.error(
         status: FirebaseEmailSignInStatus.ERROR_MISSING_EMAIL,
       );
     }
     if (password == null || password?.length == 0) {
-      return FirebaseAuthResult<FirebaseEmailSignInStatus>.Error(
+      return FirebaseAuthResult<FirebaseEmailSignInStatus>.error(
         status: FirebaseEmailSignInStatus.ERROR_MISSING_PASSWORD,
       );
     }
 
     try {
-      final user = await _auth.signInWithEmailAndPassword(
+      final user = await auth.signInWithEmailAndPassword(
         email: email,
         password: password,
       );
       assert(user != null);
-      return FirebaseAuthResult<FirebaseEmailSignInStatus>.Success(
+      return FirebaseAuthResult<FirebaseEmailSignInStatus>.success(
         status: FirebaseEmailSignInStatus.SUCCESS,
         user: user,
       );
     } catch (error) {
       if (error is PlatformException) {
         if (emailSignInErrorCodes.containsKey(error.code)) {
-          return FirebaseAuthResult<FirebaseEmailSignInStatus>.Error(
+          return FirebaseAuthResult<FirebaseEmailSignInStatus>.error(
             status: emailSignInErrorCodes[error.code],
           );
         } else {
@@ -283,17 +290,17 @@ class FirebaseAuthUtils {
 
     // If null is returned from Google sign in then user cancelled the operation
     if (currentUser == null) {
-      return FirebaseAuthResult.Error(status: FirebaseSocialSignInStatus.CANCELLED);
+      return FirebaseAuthResult.error(status: FirebaseSocialSignInStatus.CANCELLED);
     }
 
     // Authenticate with firebase using the Google sign-in token
-    final GoogleSignInAuthentication auth = await currentUser.authentication;
+    final GoogleSignInAuthentication googleAuth = await currentUser.authentication;
     try {
-      final FirebaseUser user = await _auth.signInWithGoogle(
-        idToken: auth.idToken,
-        accessToken: auth.accessToken,
+      final FirebaseUser user = await auth.signInWithGoogle(
+        idToken: googleAuth.idToken,
+        accessToken: googleAuth.accessToken,
       );
-      return FirebaseAuthResult.Success(status: FirebaseSocialSignInStatus.SUCCESS, user: user);
+      return FirebaseAuthResult.success(status: FirebaseSocialSignInStatus.SUCCESS, user: user);
     } catch (error) {
       throw "Unexpected Firebase Authentication exception for Google sign-in: $error";
     }
@@ -323,13 +330,13 @@ class FirebaseAuthUtils {
       case FacebookLoginStatus.loggedIn:
         FirebaseUser user;
         try {
-          user = await _auth.signInWithFacebook(accessToken: result.accessToken.token);
+          user = await auth.signInWithFacebook(accessToken: result.accessToken.token);
         } catch (error) {
           throw "Unexpected Firebase Authentication exception for Facebook sign-in: $error";
         }
-        return FirebaseAuthResult.Success(status: FirebaseSocialSignInStatus.SUCCESS, user: user);
+        return FirebaseAuthResult.success(status: FirebaseSocialSignInStatus.SUCCESS, user: user);
       case FacebookLoginStatus.cancelledByUser:
-        return FirebaseAuthResult.Error(status: FirebaseSocialSignInStatus.CANCELLED);
+        return FirebaseAuthResult.error(status: FirebaseSocialSignInStatus.CANCELLED);
       case FacebookLoginStatus.error:
         throw "Unexpected Facebook sign in error response: ${result.errorMessage}";
       default:
@@ -338,11 +345,11 @@ class FirebaseAuthUtils {
   }
 
   Future<FirebaseUser> getFirebaseUser() {
-    return _auth.currentUser();
+    return auth.currentUser();
   }
 
   Future<String> getFirebaseIdToken() async {
-    final FirebaseUser user = await _auth.currentUser();
+    final FirebaseUser user = await auth.currentUser();
     if (user == null) return null;
     return await user.getIdToken();
   }
@@ -356,7 +363,7 @@ class FirebaseAuthUtils {
     await signOutOfFacebook();
 
     // Sign out with firebase
-    await _auth.signOut();
+    await auth.signOut();
   }
 
   /// Sign out of google only (not signed out of firebase)
