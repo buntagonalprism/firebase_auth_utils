@@ -1,0 +1,11 @@
+<component name="libraryTable">
+  <library name="Flutter Plugins" type="FlutterPluginsLibraryType">
+    <CLASSES>
+      <root url="file://C:/flutter/.pub-cache/git/plugins-d41d0c32ccb16e80711a2cab512e5591a5b08f38/packages/firebase_auth" />
+      <root url="file://C:/flutter/.pub-cache/hosted/pub.dartlang.org/google_sign_in-3.0.5" />
+      <root url="file://C:/flutter/.pub-cache/hosted/pub.dartlang.org/flutter_facebook_login-1.1.1" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>
