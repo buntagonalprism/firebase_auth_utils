@@ -67,12 +67,17 @@ packages:
   firebase_auth:
     dependency: "direct main"
     description:
-      path: "packages/firebase_auth"
-      ref: auth_error_codes
-      resolved-ref: d41d0c32ccb16e80711a2cab512e5591a5b08f38
-      url: "git://github.com/buntagonalprism/plugins.git"
-    source: git
-    version: "0.5.19"
+      name: firebase_auth
+      url: "https://pub.dartlang.org"
+    source: hosted
+    version: "0.6.6"
+  firebase_core:
+    dependency: transitive
+    description:
+      name: firebase_core
+      url: "https://pub.dartlang.org"
+    source: hosted
+    version: "0.2.5+1"
   flutter:
     dependency: "direct main"
     description: flutter
